@@ -33,8 +33,11 @@ jobs:
         run: |
           SDKM="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
           yes | "$SDKM" --licenses > /dev/null || true
-          "$SDKM" "platforms;android-36" "platforms;android-36.1" "build-tools;37.0.0" \
-            "ndk;29.0.14206865" "cmake;4.1.2"
+          for pkg in "platforms;android-36" "platforms;android-36.1" "build-tools;37.0.0" \
+              "ndk;29.0.14206865" "cmake;4.1.2"; do
+            "$SDKM" "$pkg" > /dev/null || echo "::warning::sdkmanager could not install $pkg"
+          done
+          ls "$ANDROID_HOME/platforms" "$ANDROID_HOME/cmake" "$ANDROID_HOME/ndk" "$ANDROID_HOME/build-tools"
 
       # arm64 only (the RG DS / RG DS Plus are arm64) to keep the build inside
       # the runner's time limit, and a throwaway signing key kept in the repo
@@ -53,7 +56,14 @@ jobs:
       - name: Build APK
         run: |
           chmod +x gradlew
-          ./gradlew --no-daemon :app:assembleFdroidRelease
+          set -o pipefail
+          # Build logs aren't reachable from outside the runner, so on failure
+          # surface the important lines as annotations.
+          if ! ./gradlew --no-daemon :app:assembleFdroidRelease 2>&1 | tee build.log; then
+            grep -E "What went wrong|error:|Error:|FAILED|Could not|not found|> " build.log \
+              | grep -v "^> Task" | head -40 | sed 's/^/::error::/' || true
+            exit 1
+          fi
           find app/build/outputs/apk -name '*.apk' -exec cp {} doom-rgds.apk \;
           ls -la doom-rgds.apk
 
