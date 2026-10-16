@@ -5,6 +5,7 @@ import android.util.Log
 import android.view.KeyEvent
 import com.mobilerpgpack.phone.R
 import com.mobilerpgpack.phone.engine.EngineTypes
+import com.mobilerpgpack.phone.engine.activity.DualScreenLayout
 import com.mobilerpgpack.phone.engine.engineinfo.IEngineInfo
 import com.mobilerpgpack.phone.engine.engineinfo.isResourceCorrect
 import com.mobilerpgpack.phone.main.ONE_FRAME_DELAY
@@ -37,7 +38,10 @@ fun startGame(activity: Activity, engineToPlay: EngineTypes) {
         named(engineToPlay.toString()))
     with(activity){
         if (activeEngineInfo.isResourceCorrect(this)) {
-            startActivity(activeEngineInfo.gameActivityClazz)
+            // Same as startActivity(gameActivityClazz), but onto the secondary
+            // display when the swapped dual-screen layout applies.
+            DualScreenLayout.startGameActivity(this, activeEngineInfo.gameActivityClazz)
+            finish()
         }
     }
 }

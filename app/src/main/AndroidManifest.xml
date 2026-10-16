@@ -13,6 +13,8 @@
 
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Dual screen: lets the HUD activity hand focus back to the game's task. -->
+    <uses-permission android:name="android.permission.REORDER_TASKS" />
 
     <uses-feature android:glEsVersion="0x00020000" android:required="false" />
     <uses-feature android:glEsVersion="0x00030000" android:required="false" />
@@ -90,6 +92,14 @@
                 <action android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED" />
             </intent-filter>
         </activity>
+
+        <!-- HUD on the default display when the game runs on the secondary one. -->
+        <activity android:name=".engine.activity.SecondScreenHudActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:taskAffinity="${applicationId}.hud"
+            android:configChanges="layoutDirection|locale|orientation|uiMode|screenLayout|screenSize|smallestScreenSize|keyboard|keyboardHidden|navigation"
+            android:theme="@style/AppFullScreenTheme" />
     </application>
 
 </manifest>

@@ -1,7 +1,11 @@
 package com.mobilerpgpack.phone.engine.activity
 
+import android.app.Activity
+import android.app.ActivityOptions
 import android.app.Presentation
 import android.content.Context
+import android.content.Intent
+import android.os.Build
 import android.graphics.Color
 import android.graphics.PixelFormat
 import android.graphics.drawable.ColorDrawable
@@ -51,11 +55,54 @@ internal class SecondScreenPresentationController(
         }
         presentation?.dismiss()
         presentation = null
+        SecondScreenHudActivity.detach()
+        // Only close the HUD activity when the game is going away for good:
+        // relaunching it means another round of focus juggling.
+        if ((context as? Activity)?.isFinishing == true) {
+            SecondScreenHudActivity.instance?.get()?.finish()
+            SecondScreenHudActivity.gameActivity = null
+        }
         onSecondScreenSurfaceChanged(null, 0, 0)
         onSecondScreenActiveChanged(false)
     }
 
+    private fun gameDisplayId(): Int =
+        (context as? Activity)?.windowManager?.defaultDisplay?.displayId ?: Display.DEFAULT_DISPLAY
+
+    // Swapped layout: the game was launched onto a secondary display (see
+    // DualScreenLayout), so the HUD belongs on the default display, which a
+    // Presentation can't use; it is hosted by SecondScreenHudActivity there.
+    private fun showHudActivity() {
+        presentation?.dismiss()
+        presentation = null
+        val game = context as? Activity ?: return
+        SecondScreenHudActivity.gameActivity = java.lang.ref.WeakReference(game)
+        // Display-changed events arrive often; only (re)attach when needed so
+        // the engine isn't handed the same surface over and over.
+        if (SecondScreenHudActivity.surfaceListener !== onSecondScreenSurfaceChanged) {
+            onSecondScreenActiveChanged(true)
+            SecondScreenHudActivity.attach(onSecondScreenSurfaceChanged)
+        }
+        if (SecondScreenHudActivity.instance?.get()?.isFinishing == false) return
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+        val intent = Intent(game, SecondScreenHudActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_MULTIPLE_TASK
+                or Intent.FLAG_ACTIVITY_NO_ANIMATION)
+        val options = ActivityOptions.makeBasic().setLaunchDisplayId(Display.DEFAULT_DISPLAY)
+        try {
+            game.startActivity(intent, options.toBundle())
+            Log.i(TAG, "HUD activity launched on the default display (swapped)")
+        } catch (error: RuntimeException) {
+            Log.w(TAG, "Unable to launch HUD activity on the default display", error)
+            onSecondScreenActiveChanged(false)
+        }
+    }
+
     private fun updatePresentation() {
+        if (gameDisplayId() != Display.DEFAULT_DISPLAY) {
+            showHudActivity()
+            return
+        }
         val display = findSecondaryDisplay()
         val currentDisplayId = presentation?.display?.displayId
 
@@ -88,13 +135,15 @@ internal class SecondScreenPresentationController(
         }
     }
 
+    // Never the game's own display: a Presentation there would cover the game.
     private fun findSecondaryDisplay(): Display? {
+        val gameDisplay = gameDisplayId()
         val presentationDisplay = displayManager
             .getDisplays(DisplayManager.DISPLAY_CATEGORY_PRESENTATION)
-            .firstOrNull { it.displayId != Display.DEFAULT_DISPLAY }
+            .firstOrNull { it.displayId != Display.DEFAULT_DISPLAY && it.displayId != gameDisplay }
 
         return presentationDisplay ?: displayManager.displays
-            .firstOrNull { it.displayId != Display.DEFAULT_DISPLAY }
+            .firstOrNull { it.displayId != Display.DEFAULT_DISPLAY && it.displayId != gameDisplay }
     }
 
     private class SecondScreenPresentation(
@@ -126,6 +175,11 @@ internal class SecondScreenPresentationController(
                 WindowManager.LayoutParams.FLAG_FULLSCREEN,
                 WindowManager.LayoutParams.FLAG_FULLSCREEN,
             )
+            // A Presentation is a Dialog, focusable by default. A controller
+            // follows the focused display, and UZDoom stops drawing when its
+            // window loses focus, so a tap on the HUD froze the game. Touch
+            // still reaches non-focusable windows.
+            window?.addFlags(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE)
 
             val root = FrameLayout(context).apply {
                 setBackgroundColor(Color.BLACK)
