@@ -33,8 +33,10 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Install SDK, NDK and CMake
+      - name: Install SDK, NDK, CMake and ccache
         run: |
+          # The third-party module builds use ccache as their compiler launcher.
+          sudo apt-get update -qq && sudo apt-get install -y -qq ccache
           SDKM="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
           yes | "$SDKM" --licenses > /dev/null || true
           for pkg in "platforms;android-36" "platforms;android-36.1" "build-tools;37.0.0" \
@@ -64,8 +66,8 @@ jobs:
           # Build logs aren't reachable from outside the runner, so on failure
           # surface the important lines as annotations.
           if ! ./gradlew --no-daemon :app:assembleFdroidRelease 2>&1 | tee build.log; then
-            { grep -A3 -E "CMake Error|What went wrong" build.log; grep -E "error:|FAILED" build.log; } \
-              | grep -v "^> Task" | head -10 | sed 's/^/::error::/' || true
+            { grep -m6 -E "error:|CMake Error" build.log; grep -m2 -A2 "What went wrong" build.log; } \
+              | cut -c1-400 | head -10 | sed 's/^/::error::/' || true
             exit 1
           fi
           find app/build/outputs/apk -name '*.apk' -exec cp {} doom-rgds.apk \;
