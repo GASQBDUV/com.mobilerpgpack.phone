@@ -35,8 +35,8 @@ jobs:
 
       - name: Install SDK, NDK, CMake and ccache
         run: |
-          # The third-party module builds use ccache as their compiler launcher.
-          sudo apt-get update -qq && sudo apt-get install -y -qq ccache
+          # ccache is the third-party builds' compiler launcher; UZDoom needs re2c and lemon.
+          sudo apt-get update -qq && sudo apt-get install -y -qq ccache re2c lemon
           SDKM="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
           yes | "$SDKM" --licenses > /dev/null || true
           for pkg in "platforms;android-36" "platforms;android-36.1" "build-tools;37.0.0" \
