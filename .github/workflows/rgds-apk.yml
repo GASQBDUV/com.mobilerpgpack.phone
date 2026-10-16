@@ -66,12 +66,23 @@ jobs:
           # Build logs aren't reachable from outside the runner, so on failure
           # surface the important lines as annotations.
           if ! ./gradlew --no-daemon :app:assembleFdroidRelease 2>&1 | tee build.log; then
-            { grep -m6 -E "error:|CMake Error" build.log; grep -m2 -A2 "What went wrong" build.log; } \
+            { grep -m6 -A3 -E "error:|error :|FAILED:|CMake Error" build.log; } \
               | cut -c1-400 | head -10 | sed 's/^/::error::/' || true
             exit 1
           fi
           find app/build/outputs/apk -name '*.apk' -exec cp {} doom-rgds.apk \;
           ls -la doom-rgds.apk
+
+      # The runner's logs can't be fetched from outside, so a failed build
+      # publishes its log as a (pre)release asset instead.
+      - name: Publish build log on failure
+        if: failure()
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: rgds-buildlog-${{ github.run_number }}
+          name: RG DS build log ${{ github.run_number }}
+          prerelease: true
+          files: build.log
 
       - uses: softprops/action-gh-release@v2
         with:
