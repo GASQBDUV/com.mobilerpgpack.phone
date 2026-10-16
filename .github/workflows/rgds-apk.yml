@@ -12,6 +12,10 @@ jobs:
   apk:
     runs-on: ubuntu-24.04
     timeout-minutes: 350
+    env:
+      # Some bundled third-party CMakeLists still declare a minimum below 3.5,
+      # which CMake 4 rejects unless told which policy level to assume.
+      CMAKE_POLICY_VERSION_MINIMUM: '3.5'
     steps:
       # The full native build (UZDoom + its third-party libs) needs the room.
       - name: Free disk space
@@ -60,8 +64,8 @@ jobs:
           # Build logs aren't reachable from outside the runner, so on failure
           # surface the important lines as annotations.
           if ! ./gradlew --no-daemon :app:assembleFdroidRelease 2>&1 | tee build.log; then
-            grep -E "What went wrong|error:|Error:|FAILED|Could not|not found|> " build.log \
-              | grep -v "^> Task" | head -40 | sed 's/^/::error::/' || true
+            { grep -A3 -E "CMake Error|What went wrong" build.log; grep -E "error:|FAILED" build.log; } \
+              | grep -v "^> Task" | head -10 | sed 's/^/::error::/' || true
             exit 1
           fi
           find app/build/outputs/apk -name '*.apk' -exec cp {} doom-rgds.apk \;
