@@ -58,6 +58,10 @@ jobs:
           storePassword=android
           PROPS
           grep abi_filters build.gradle
+          # The bundled lemon-host is a macOS binary; build UZDoom's own lemon
+          # for this runner (it finds lempar.c next to itself).
+          gcc -O2 -o third_party/uzdoom_tools/lemon-host app/src/main/jni/UZDoom/tools/lemon/lemon.c
+          file third_party/uzdoom_tools/lemon-host
 
       - name: Build APK
         run: |
